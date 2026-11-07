@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meeting Transcriber</title>
+<meta name="theme-color" content="#111418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Transcriber">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#f6f5f2; --surface:#ffffff; --ink:#16181b; --muted:#6b7078; --line:#e3e1dc;
+  --accent:#b23a2e; --accent-ink:#fff; --soft:#efeee9; --ok:#2f7a4f;
+  --sp1:#2b5f8a; --sp2:#8a5a2b; --sp3:#5b3f8a; --sp4:#2b7a6e; --sp5:#8a2b5b;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#111418; --surface:#1a1e23; --ink:#eceae5; --muted:#9aa0a8; --line:#2a2f36;
+    --accent:#e0574a; --accent-ink:#fff; --soft:#22272d; --ok:#5cb282;
+    --sp1:#7fb2dd; --sp2:#ddb07f; --sp3:#b29be0; --sp4:#7fd3c4; --sp5:#e08fb8;
+    color-scheme: dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+button,select,input{font:inherit;color:inherit}
+.wrap{max-width:760px;margin:0 auto;padding:max(12px,env(safe-area-inset-top)) 16px 96px}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 14px}
+h1{font-size:19px;margin:0;letter-spacing:-.01em}
+.iconbtn{background:none;border:1px solid var(--line);border-radius:10px;width:40px;height:40px;cursor:pointer;display:grid;place-items:center}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+.rec{display:flex;flex-direction:column;align-items:center;gap:12px;padding:22px 16px}
+#recBtn{width:88px;height:88px;border-radius:50%;border:none;background:var(--accent);color:var(--accent-ink);
+  cursor:pointer;display:grid;place-items:center;box-shadow:0 6px 20px rgba(178,58,46,.28);transition:transform .1s}
+#recBtn:active{transform:scale(.96)}
+#recBtn .dot{width:30px;height:30px;border-radius:50%;background:currentColor;transition:all .2s}
+#recBtn.on .dot{border-radius:6px;width:26px;height:26px}
+#recBtn:disabled{opacity:.5;cursor:default}
+#timer{font-variant-numeric:tabular-nums;font-size:28px;font-weight:600;letter-spacing:.02em}
+.meter{width:min(280px,80%);height:6px;background:var(--soft);border-radius:4px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.seg{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px}
+.seg label{padding:6px 12px;border-radius:8px;cursor:pointer;font-size:14px;user-select:none}
+.seg input{display:none}
+.seg input:checked+span{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg span{display:block;padding:6px 12px;border-radius:8px}
+.seg label{padding:0}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 14px;cursor:pointer;font-size:14px}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:default}
+#status{font-size:13px;color:var(--muted);text-align:center;min-height:20px}
+.bar{height:3px;background:var(--soft);border-radius:2px;overflow:hidden;width:min(280px,80%)}
+.bar i{display:block;height:100%;width:0;background:var(--muted)}
+.hidden{display:none!important}
+.section-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.section-h h2{font-size:15px;margin:0}
+.small{font-size:13px;color:var(--muted)}
+#transcript{max-height:55vh;overflow:auto}
+.line{display:grid;grid-template-columns:52px 1fr;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.line:first-child{border-top:none}
+.ts{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:3px}
+.spk{font-weight:600;font-size:13px;cursor:pointer;margin-right:6px}
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:18px 0}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+#summary{font-size:15px}
+#summary h3{font-size:15px;margin:14px 0 6px}
+#summary ul{padding-left:20px;margin:6px 0}
+.hist{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.hist:first-child{border-top:none}
+.hist b{font-weight:600;font-size:14px}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);padding:0;width:min(520px,calc(100% - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{padding:18px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.field label{font-size:13px;font-weight:600}
+.field select,.field input[type=text],.field input[type=password]{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 10px;width:100%}
+.check{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;font-size:14px}
+.check input{margin-top:4px}
+.menu{position:relative;display:inline-block}
+.menu-list{position:absolute;bottom:110%;left:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px;min-width:190px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:5}
+.menu-list button{display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px}
+.menu-list button:hover{background:var(--soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Meeting Transcriber</h1>
+    <button class="iconbtn" id="settingsBtn" aria-label="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <section class="card rec">
+    <div class="seg" id="sourceSeg">
+      <label><input type="radio" name="source" value="mic" checked><span>Microphone</span></label>
+      <label id="tabOpt"><input type="radio" name="source" value="tab"><span>Mic + tab audio</span></label>
+    </div>
+    <button id="recBtn" aria-label="Start recording"><span class="dot"></span></button>
+    <div id="timer">00:00</div>
+    <div class="meter"><i id="level"></i></div>
+    <div class="bar hidden" id="dlBar"><i></i></div>
+    <div id="status">Ready</div>
+    <div class="row">
+      <button class="btn" id="importBtn">Transcribe a file…</button>
+      <input type="file" id="fileIn" accept="audio/*,video/*" class="hidden">
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-h">
+      <h2 id="sessTitle">Transcript</h2>
+      <span class="small" id="queueInfo"></span>
+    </div>
+    <div id="transcript"><div class="empty">Press record. Text appears here as you speak.</div></div>
+    <div class="actions" id="actions" style="margin-top:12px">
+      <button class="btn" id="speakersBtn" disabled>Identify speakers</button>
+      <button class="btn primary" id="summaryBtn" disabled>Summary + actions</button>
+      <div class="menu">
+        <button class="btn" id="exportBtn" disabled>Export ▾</button>
+        <div class="menu-list hidden" id="exportMenu">
+          <button data-x="md">Markdown (.md)</button>
+          <button data-x="txt">Plain text (.txt)</button>
+          <button data-x="srt">Subtitles (.srt)</button>
+          <button data-x="json">Data (.json)</button>
+          <button data-x="audio">Audio recording</button>
+          <button data-x="copy">Copy to clipboard</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="summaryCard">
+    <div class="section-h"><h2>Summary</h2></div>
+    <div id="summary"></div>
+  </section>
+
+  <section class="card">
+    <div class="section-h"><h2>Saved on this device</h2></div>
+    <div id="history"><div class="empty">No recordings yet.</div></div>
+  </section>
+
+  <p class="small" style="text-align:center">Audio and transcription stay on this device. Only the summary step sends the transcript text (not audio) to the Claude API, and only when you press it.</p>
+</div>
+
+<dialog id="settings">
+  <form method="dialog" class="dlg">
+    <h2 style="margin:0 0 14px;font-size:17px">Settings</h2>
+    <div class="field">
+      <label for="model">Whisper model</label>
+      <select id="model">
+        <option value="onnx-community/whisper-base">Base — fastest, OK for clear speech (~80 MB)</option>
+        <option value="onnx-community/whisper-small">Small — good Polish/English (~250 MB)</option>
+        <option value="onnx-community/whisper-large-v3-turbo">Large v3 Turbo — best, desktop GPU only (~1 GB)</option>
+      </select>
+      <span class="small" id="deviceInfo"></span>
+    </div>
+    <div class="field">
+      <label for="lang">Language</label>
+      <select id="lang">
+        <option value="">Auto-detect (mixed Polish/English)</option>
+        <option value="polish">Polski</option>
+        <option value="english">English</option>
+      </select>
+    </div>
+    <label class="check"><input type="checkbox" id="live"> <span><b>Live transcription</b><br><span class="small">Transcribe while recording. Turn off on older phones to save battery — it then runs after you stop.</span></span></label>
+    <label class="check"><input type="checkbox" id="autoSpk"> <span><b>Identify speakers automatically</b><br><span class="small">After stopping. In "Mic + tab audio" mode you're labelled Me and the call is Them. Mic-only: up to 3 voices, recordings up to ~15 min (8 on phones).</span></span></label>
+    <div class="field">
+      <label for="apiKey">Claude API key (for summaries)</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off">
+      <span class="small">Stored only in this browser.</span>
+    </div>
+    <div class="field">
+      <label for="claudeModel">Claude model</label>
+      <input type="text" id="claudeModel">
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn primary" value="ok">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
