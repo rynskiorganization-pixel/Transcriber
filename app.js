@@ -6,11 +6,16 @@ const $ = (s) => document.querySelector(s);
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
 const SEG_SEC = isMobile ? 30 : 20;          // live chunk length
+// Phones run Whisper on the CPU (WebAssembly): WebGPU on iPhone uses far more
+// memory and Safari kills the page ("A problem repeatedly occurred").
+const PREFER = isMobile ? 'wasm' : 'auto';
+const MODELS = ['onnx-community/whisper-large-v3-turbo', 'onnx-community/whisper-small',
+  'onnx-community/whisper-base', 'onnx-community/whisper-tiny'];
 const DIAR_MAX_SEC = isMobile ? 8 * 60 : 15 * 60; // browser speaker-model limit
 
 // ---------- settings ----------
 const DEFAULTS = {
-  model: 'onnx-community/whisper-small',
+  model: isMobile ? 'onnx-community/whisper-base' : 'onnx-community/whisper-small',
   lang: '',
   live: true,
   autoSpk: true,
@@ -43,6 +48,7 @@ worker.onmessage = (e) => {
   else if (m.type === 'speakers') { speakersResolve?.resolve(m.turns); speakersResolve = null; }
   else if (m.type === 'status') setStatus(m.text);
   else if (m.type === 'ready') {
+    lsSet('mt.loading', '');
     $('#dlBar').classList.add('hidden');
     $('#deviceInfo').textContent = m.device === 'webgpu' ? 'Running on the GPU (WebGPU).' : 'Running on the CPU (WebAssembly).';
     setStatus(recording ? 'Recording…' : 'Model ready');
@@ -57,12 +63,32 @@ worker.onmessage = (e) => {
   }
 };
 
+// Remember which model was loading: if the page is killed for memory, the next
+// start finds the marker and steps down to a smaller model.
+function loadModel() {
+  lsSet('mt.loading', settings.model);
+  worker.postMessage({ type: 'load', model: settings.model, prefer: PREFER });
+}
+function checkCrash() {
+  const was = lsGet('mt.loading');
+  if (!was) return;
+  lsSet('mt.loading', '');
+  const i = MODELS.indexOf(was);
+  if (i >= 0 && i < MODELS.length - 1) {
+    settings.model = MODELS[i + 1];
+    saveSettings();
+    setStatus(`The phone ran out of memory last time, so I switched to the ${settings.model.split('-').pop()} model. Try again.`);
+  } else {
+    setStatus('The phone ran out of memory last time. Close other apps and try a short recording.');
+  }
+}
+
 function transcribeJob(audio, offset) {
   const id = ++jobSeq;
   return new Promise((resolve, reject) => {
     jobs.set(id, { resolve, reject });
     worker.postMessage({ type: 'transcribe', id, audio, offset, language: settings.lang,
-      model: settings.model, prefer: 'auto' }, [audio.buffer]);
+      model: settings.model, prefer: PREFER }, [audio.buffer]);
   });
 }
 
@@ -160,7 +186,7 @@ async function startRecording() {
 
   current = sess;
   renderAll();
-  worker.postMessage({ type: 'load', model: settings.model, prefer: 'auto' });
+  loadModel();
 
   ctx = new AudioContext();
   await ctx.resume();
@@ -271,7 +297,8 @@ async function finishSession(sess) {
   setStatus(sess.segments.length ? 'Done — saved on this device.' : 'Done — no speech detected.');
   setButtons(true);
   renderAll();
-  renderHistory();
+  checkCrash();
+renderHistory();
 }
 
 // ---------- speakers ----------
@@ -334,7 +361,7 @@ async function importFile(file) {
     const pcm = await decodeTo16k(file);
     sess.duration = pcm.length / 16000;
     sess.pcm16 = [pcm];
-    worker.postMessage({ type: 'load', model: settings.model, prefer: 'auto' });
+    loadModel();
     const piece = 120 * 16000;
     let pos = 0;
     while (pos < pcm.length) {
@@ -607,7 +634,8 @@ $('#history').onclick = async (e) => {
   if (recording) return;
   if (open) { current = await dbGet(open); current.pcm16 = []; renderAll(); setButtons(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   if (del && confirm('Delete this recording and transcript?')) {
-    await dbDel(del); if (current?.id === del) { current = null; renderAll(); setButtons(false); } renderHistory();
+    await dbDel(del); if (current?.id === del) { current = null; renderAll(); setButtons(false); } checkCrash();
+renderHistory();
   }
 };
 
@@ -615,4 +643,5 @@ if (!navigator.mediaDevices?.getDisplayMedia || isMobile) $('#tabOpt').classList
 if (!navigator.mediaDevices?.getUserMedia) { setStatus('This browser cannot record audio.'); $('#recBtn').disabled = true; }
 if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+checkCrash();
 renderHistory();

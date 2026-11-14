@@ -8,6 +8,7 @@ import {
 } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
 
 env.allowLocalModels = false;
+env.backends.onnx.wasm.numThreads = 1; // GitHub Pages can't enable threads; avoids extra memory
 
 let asr = null;
 let asrKey = '';
@@ -48,8 +49,8 @@ async function loadASR(model, prefer) {
     },
   });
   asrKey = key;
-  // Warm up so the first real chunk isn't slow.
-  await asr(new Float32Array(16000), { return_timestamps: true });
+  // Warm up so the first real chunk isn't slow (skipped on CPU to save memory).
+  if (gpu) await asr(new Float32Array(16000), { return_timestamps: true });
   postMessage({ type: 'ready', device });
   return asr;
 }

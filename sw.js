@@ -1,6 +1,6 @@
 // Offline support: cache the app shell and the transformers.js library.
 // Whisper model files are cached separately by transformers.js itself.
-const CACHE = 'mt-v1';
+const CACHE = 'mt-v2';
 const SHELL = ['./', 'index.html', 'app.js', 'worker.js', 'capture-worklet.js', 'manifest.webmanifest',
   'icon.svg', 'icon-192.png', 'icon-512.png'];
 

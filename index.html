@@ -156,8 +156,9 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <div class="field">
       <label for="model">Whisper model</label>
       <select id="model">
-        <option value="onnx-community/whisper-base">Base — fastest, OK for clear speech (~80 MB)</option>
-        <option value="onnx-community/whisper-small">Small — good Polish/English (~250 MB)</option>
+        <option value="onnx-community/whisper-tiny">Tiny — lightest, for older phones (~40 MB)</option>
+        <option value="onnx-community/whisper-base">Base — recommended on iPhone (~80 MB)</option>
+        <option value="onnx-community/whisper-small">Small — better Polish, newer phones / PC (~250 MB)</option>
         <option value="onnx-community/whisper-large-v3-turbo">Large v3 Turbo — best, desktop GPU only (~1 GB)</option>
       </select>
       <span class="small" id="deviceInfo"></span>
